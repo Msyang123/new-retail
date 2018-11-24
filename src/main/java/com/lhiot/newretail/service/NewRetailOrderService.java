@@ -272,9 +272,9 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
                     deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
                     deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode());
+                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.WECHAT_MALL);
                     if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());
+                        deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
                         deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());
                     } else {
                         log.error("查询门店信息失败", orderDetailResult.getOrderStore().getStoreCode());
