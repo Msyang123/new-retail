@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.lhiot.newretail.mapper.NewRetailOrderMapper">
+
+    <!-- 数据库字段对象关系映射 -->
+    <resultMap id="BaseResultMap" type="com.lhiot.newretail.model.NewRetailOrder" >
+        <id column="order_code" javaType="String" jdbcType="VARCHAR" property="orderCode" />
+        <result column="address" property="address" />
+        <result column="amount_payable" property="amountPayable" />
+        <result column="contact_phone" property="contactPhone" />
+        <result column="coupon_amount" property="couponAmount" />
+        <result column="delivery_amount" property="deliveryAmount" />
+        <result column="deliver_time" property="deliverTime" />
+        <result column="nickname" property="nickname" />
+        <result column="receive_user" property="receiveUser" />
+        <result column="receiving_way" property="receivingWay" />
+        <result column="remark" property="remark" />
+        <result column="total_amount" property="totalAmount" />
+        <result column="pay_type" property="payType" />
+        <result column="operation_user" property="orderStore.operationUser" />
+        <result column="store_code" property="orderStore.storeCode" />
+        <result column="store_name" property="orderStore.storeName" />
+
+        <collection  property="orderProducts"  ofType="com.lhiot.newretail.model.NewRetailOrderProduct">
+            <id column="id" property="id"/>
+            <result column="barcode" property="barcode" />
+            <result column="discount_price" property="discountPrice" />
+            <result column="product_name" property="productName" />
+            <result column="product_qty" property="productQty" />
+            <result column="specification_qty" property="specificationQty" />
+            <result column="total_price" property="totalPrice" />
+            <result column="total_weight" property="totalWeight" />
+        </collection>
+    </resultMap>
+
+    <!--新增新零售订单-->
+    <insert id="createOrder" parameterType="com.lhiot.newretail.model.NewRetailOrder">
+        insert into new_retail_order
+        <trim prefix="(" suffix=")" suffixOverrides="," >
+            order_code,
+            <if test="address != null ">
+                address,
+            </if>
+            <if test="amountPayable != null ">
+                amount_payable,
+            </if>
+            <if test="contactPhone != null ">
+                contact_phone,
+            </if>
+            <if test="couponAmount != null ">
+                coupon_amount,
+            </if>
+            <if test="deliveryAmount != null ">
+                delivery_amount,
+            </if>
+            <if test="deliverTime != null ">
+                deliver_time,
+            </if>
+            <if test="nickname != null ">
+                nickname,
+            </if>
+            <if test="receiveUser != null ">
+                receive_user,
+            </if>
+            <if test="receivingWay != null ">
+                receiving_way,
+            </if>
+            <if test="remark != null ">
+                remark,
+            </if>
+            <if test="totalAmount != null ">
+                total_amount,
+            </if>
+            <if test="payType != null ">
+                pay_type,
+            </if>
+            <if test="orderStore.operationUser != null ">
+                operation_user,
+            </if>
+            <if test="orderStore.storeCode != null ">
+                store_code,
+            </if>
+            <if test="orderStore.storeName != null ">
+                store_name,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides="," >
+            #{orderCode},
+            <if test="address != null ">
+                #{address},
+            </if>
+            <if test="amountPayable != null ">
+                #{amountPayable},
+            </if>
+            <if test="contactPhone != null ">
+                #{contactPhone},
+            </if>
+            <if test="couponAmount != null ">
+                #{couponAmount},
+            </if>
+            <if test="deliveryAmount != null ">
+                #{deliveryAmount},
+            </if>
+            <if test="deliverTime != null ">
+                #{deliverTime},
+            </if>
+            <if test="nickname != null ">
+                #{nickname},
+            </if>
+            <if test="receiveUser != null ">
+                #{receiveUser},
+            </if>
+            <if test="receivingWay != null ">
+                #{receivingWay},
+            </if>
+            <if test="remark != null ">
+                #{remark},
+            </if>
+            <if test="totalAmount != null ">
+                #{totalAmount},
+            </if>
+            <if test="payType != null ">
+                #{payType},
+            </if>
+            <if test="orderStore.operationUser != null ">
+                #{orderStore.operationUser},
+            </if>
+            <if test="orderStore.storeCode != null ">
+                #{orderStore.storeCode},
+            </if>
+            <if test="orderStore.storeName != null ">
+                #{orderStore.storeName},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- base查询字段  -->
+    <sql id="Base_Column_List" >
+        <trim suffixOverrides="," >
+            order_code,
+            address,
+            amount_payable,
+            contact_phone,
+            coupon_amount,
+            delivery_amount,
+            deliver_time,
+            nickname,
+            receive_user,
+            receiving_way,
+            remark,
+            total_amount,
+            pay_type,
+            store_code,
+            store_name,
+            operation_user,
+        </trim>
+    </sql>
+    <select id="orderDetialByCode" resultMap="BaseResultMap"
+            parameterType="String">
+        select <include refid="Base_Column_List" />
+        from new_retail_order where order_code=#{0}
+    </select>
+</mapper>

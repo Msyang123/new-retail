@@ -1,0 +1,25 @@
+server:
+  port: 5111
+spring:
+  application:
+    name: new-retail-server-v1-0
+  cloud:
+    config:
+      name: rabbit-mq, application, new-retail-server-v1-0
+      profile: ${RUN_LEVEL:dev}
+      label: ${RUN_LEVEL:dev}
+      failFast: true
+      discovery:
+        enabled: true
+        service-id: microx-config
+new-retail-service:
+  snowflake-id:
+    data-center-id: 2
+    worker-id: 1
+eureka:
+  instance:
+    prefer-ip-address: true
+    status-page-url-path: /swagger-ui.html
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_REPLICAS_LIST:http://172.16.10.203:1111/eureka}

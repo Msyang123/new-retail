@@ -1,0 +1,11 @@
+${AnsiColor.BRIGHT_GREEN}
+      :::        :::    :::       :::::::::::       ::::::::   :::::::::::
+     :+:        :+:    :+:           :+:          :+:    :+:      :+:
+    +:+        +:+    +:+           +:+          +:+    +:+      +:+
+   +#+        +#++:++#++           +#+          +#+    +:+      +#+
+  +#+        +#+    +#+           +#+          +#+    +#+      +#+
+ #+#        #+#    #+#           #+#          #+#    #+#      #+#
+########## ###    ###       ###########       ########       ###
+${AnsiColor.BRIGHT_RED}
+Application Name: new-retail-server
+Spring Boot Version: ${spring-boot.version}
