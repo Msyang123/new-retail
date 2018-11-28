@@ -224,11 +224,13 @@ public class NewRetailOrderService {
             return Tips.of(HttpStatus.OK, String.valueOf(receivedResponseEntity.getBody()));
         } else {
             //出门店的配送单，订单配送中
-            ResponseEntity dispatchingResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.DISPATCHING);
+            /*ResponseEntity dispatchingResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.DISPATCHING);
             if (Objects.isNull(dispatchingResponseEntity) || dispatchingResponseEntity.getStatusCode().isError()) {
                 return Tips.of(HttpStatus.BAD_REQUEST, "调用订单修改为配送中失败");
             }
             return Tips.of(HttpStatus.OK, String.valueOf(dispatchingResponseEntity.getBody()));
+            */
+            return Tips.of(HttpStatus.OK, "配送骑手已出门店，订单状态交由配送流程流转");
         }
     }
 
@@ -327,8 +329,6 @@ public class NewRetailOrderService {
                     });
                     deliverOrder.setDeliverOrderProductList(deliverProductList);//填充订单商品
 
-                    deliverOrder.setStoreName("水果熟了-左家塘店");
-                    deliverOrder.setStoreCode("07310106");
                     //发送达达配送
                     ResponseEntity<Tips> deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
 
@@ -375,7 +375,7 @@ public class NewRetailOrderService {
         ResponseEntity<Tips> backSignature = deliverService.backSignature(DeliverType.valueOf(deliverConfig.getType()), stringParams);
 
         if (Objects.nonNull(backSignature) && backSignature.getStatusCode().is2xxSuccessful()) {
-            log.debug("配送签名回调验证结果", backSignature.getBody());
+            log.debug("配送签名回调验证结果:{}", backSignature.getBody());
             String orderCode = stringParams.get("order_id");
 
             switch ((int) param.get("order_status")) {
