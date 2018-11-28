@@ -5,13 +5,11 @@ import com.leon.microx.web.result.Pages;
 import com.lhiot.newretail.feign.model.ProductSpecification;
 import com.lhiot.newretail.feign.model.ProductSpecificationParam;
 import com.lhiot.newretail.feign.model.Store;
+import com.lhiot.newretail.feign.type.ApplicationType;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.*;
 
 @Component
 @FeignClient("basic-data-service-v1-0")
@@ -22,6 +20,6 @@ public interface BaseDataService {
     ResponseEntity<Pages<ProductSpecification>> search(@RequestBody ProductSpecificationParam param);
 
     @RequestMapping(value = "/stores/code/{code}",method = RequestMethod.GET)
-    ResponseEntity<Store> findStoreByCode(@PathVariable("code") String code);
+    ResponseEntity<Store> findStoreByCode(@PathVariable("code") String code, @RequestParam("applicationType") ApplicationType applicationType);
 
 }

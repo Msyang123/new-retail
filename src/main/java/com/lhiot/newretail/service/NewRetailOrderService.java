@@ -115,17 +115,28 @@ public class NewRetailOrderService {
         createOrderParam.setOrderProducts(orderProducts);
 
         OrderStore orderStore = new OrderStore();
+
+        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.NEW_RETAIL);
+        if(Objects.isNull(storeResponseEntity)||storeResponseEntity.getStatusCode().isError()){
+            log.error("创建订单查询基础服务门店信息失败,门店编码{}",newRetailOrder.getOrderStore().getStoreCode());
+            orderStore.setStoreId(-1L);
+        }else{
+            orderStore.setStoreId(storeResponseEntity.getBody().getId());
+        }
         orderStore.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
         orderStore.setStoreName(newRetailOrder.getOrderStore().getStoreName());
         orderStore.setOperationUser(newRetailOrder.getOrderStore().getOperationUser());
         createOrderParam.setOrderStore(orderStore);
         createOrderParam.setUserId(9999L);//由于没有用户信息 故默认
-        createOrderParam.setApplicationType(ApplicationType.WECHAT_MALL);
+        createOrderParam.setApplicationType(ApplicationType.NEW_RETAIL);
         createOrderParam.setOrderType("FREEGO");
+        createOrderParam.setAllowRefund(AllowRefund.YES);//是否订单允许退款
+        //发送基础服务创建订单
         ResponseEntity<OrderDetailResult> responseEntity = orderService.createOrder(createOrderParam);
 
         if (Objects.nonNull(responseEntity) && responseEntity.getStatusCode().is2xxSuccessful()) {
             OrderDetailResult orderDetailResult = responseEntity.getBody();
+
             //保存本地订单数据
             newRetailOrder.setOrderCode(orderDetailResult.getCode());
             newRetailOrderMapper.createOrder(newRetailOrder);
@@ -135,7 +146,7 @@ public class NewRetailOrderService {
             //推送到海鼎
             HdOrderInfo hdOrderInfo = new HdOrderInfo();
             BeanUtils.copyProperties(newRetailOrder, hdOrderInfo);
-            hdOrderInfo.setApplyType(ApplicationType.WECHAT_MALL);
+            hdOrderInfo.setApplyType(ApplicationType.NEW_RETAIL);
             hdOrderInfo.setCode(newRetailOrder.getOrderCode());
             hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
             hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
@@ -143,13 +154,16 @@ public class NewRetailOrderService {
             hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
             hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
             hdOrderInfo.setUserId(9999L);
+            hdOrderInfo.setRemark(ApplicationType.NEW_RETAIL.getDescription()+"-"+newRetailOrder.getRemark());
             ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             if (Objects.nonNull(haidingReduceResponse) && haidingReduceResponse.getStatusCode().is2xxSuccessful()) {
                 //发送海鼎订单成功
-                log.info("发送海鼎订单成功", orderDetailResult.getCode());
+                log.info("发送海鼎订单成功:{}", orderDetailResult.getCode());
+                //设置基础服务为待发货状态，因为此处创建的订单已经支付完成
+                orderService.updateOrderStatus(orderDetailResult.getCode(),OrderStatus.WAIT_SEND_OUT);
             } else {
                 //TODO 重试或者后台管理系统处理
-                log.error("发送海鼎订单错误:", orderDetailResult.getCode());
+                log.error("发送海鼎订单错误:{}", orderDetailResult.getCode());
             }
             return Tips.of(1, String.format("{\"hdOrderCode\":%s}", orderDetailResult.getCode()));
         }
@@ -203,14 +217,14 @@ public class NewRetailOrderService {
         OrderDetailResult orderDetailResult = orderDetailResultResponseEntity.getBody();
         if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
             //门店自提订单 直接结束
-            ResponseEntity receivedResponseEntity = orderService.received(orderCode);
+            ResponseEntity receivedResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.RECEIVED);
             if (Objects.isNull(receivedResponseEntity) || receivedResponseEntity.getStatusCode().isError()) {
                 return Tips.of(HttpStatus.BAD_REQUEST, "调用订单状态收货失败");
             }
             return Tips.of(HttpStatus.OK, String.valueOf(receivedResponseEntity.getBody()));
         } else {
             //出门店的配送单，订单配送中
-            ResponseEntity dispatchingResponseEntity = orderService.dispatching(orderCode);
+            ResponseEntity dispatchingResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.DISPATCHING);
             if (Objects.isNull(dispatchingResponseEntity) || dispatchingResponseEntity.getStatusCode().isError()) {
                 return Tips.of(HttpStatus.BAD_REQUEST, "调用订单修改为配送中失败");
             }
@@ -228,10 +242,10 @@ public class NewRetailOrderService {
 
     //处理海鼎回调
     public Tips hdCallbackDeal(@RequestBody Map<String, Object> map) {
-        Map<String, Object> contentMap = Jackson.map(map.get("content").toString());
+        Map<String, String> contentMap = (Map<String, String>)map.get("content");
 
         log.info("content = " + contentMap.toString());
-        String orderCode = (String) contentMap.get("front_order_id");
+        String orderCode = contentMap.get("front_order_id");
         //查询订单信息
         ResponseEntity<OrderDetailResult> orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
         if (Objects.isNull(orderDetailResultResponseEntity)
@@ -244,18 +258,22 @@ public class NewRetailOrderService {
             // 订单备货
             if ("order.shipped".equals(map.get("topic"))) {
                 log.info("订单备货回调********");
+                if(!Objects.equals(orderDetailResult.getStatus(),OrderStatus.WAIT_SEND_OUT)){
+                    //如果已经处理此订单信息，就不重复处理
+                    return Tips.of(HttpStatus.OK, orderCode);
+                }
                 //如果送货上门 发送订单到配送中心
 
                 //门店自提 此处不做处理，等待孚利购推送订单出店接口数据再修改订单完成
                 if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
                     //调用基础服务修改为已发货状态baseUrl
-                    orderService.delivered(orderDetailResult.getCode());
+                    orderService.updateOrderStatus(orderDetailResult.getCode(),OrderStatus.RECEIVED);
                 } else {
                     //发送到配送(达达)
                     DeliverOrder deliverOrder = new DeliverOrder();
                     deliverOrder.setAddress(orderDetailResult.getAddress());
                     deliverOrder.setAmountPayable(orderDetailResult.getAmountPayable());
-                    deliverOrder.setApplyType(ApplicationType.WECHAT_MALL);
+                    deliverOrder.setApplyType(ApplicationType.NEW_RETAIL);
                     deliverOrder.setBackUrl(deliverConfig.getBackUrl());//配置回调
                     deliverOrder.setContactPhone(orderDetailResult.getContactPhone());
                     deliverOrder.setCouponAmount(orderDetailResult.getCouponAmount());
@@ -272,9 +290,9 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
                     deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
                     deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode());
+                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.NEW_RETAIL);
                     if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());
+                        deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
                         deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());
                     } else {
                         log.error("查询门店信息失败", orderDetailResult.getOrderStore().getStoreCode());
@@ -309,16 +327,18 @@ public class NewRetailOrderService {
                     });
                     deliverOrder.setDeliverOrderProductList(deliverProductList);//填充订单商品
 
+                    deliverOrder.setStoreName("水果熟了-左家塘店");
+                    deliverOrder.setStoreCode("07310106");
                     //发送达达配送
                     ResponseEntity<Tips> deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
 
                     if (Objects.nonNull(deliverResponseEntity) && deliverResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        //调用基础服务修改为配送中状态
-                        ResponseEntity dispatchingResponse = orderService.dispatching(orderCode);
-                        if (Objects.nonNull(dispatchingResponse) && dispatchingResponse.getStatusCode().is2xxSuccessful()) {
-                            log.info("调用基础服务修改为配送中状态正常");
+                        //设置成已发货
+                        ResponseEntity sendOutResponse = orderService.updateOrderStatus(orderDetailResult.getCode(),OrderStatus.SEND_OUT);
+                        if (Objects.nonNull(sendOutResponse) && sendOutResponse.getStatusCode().is2xxSuccessful()) {
+                            log.info("调用基础服务修改为已发货状态正常{}",orderCode);
                         } else {
-                            log.error("调用基础服务修改为配送中状态错误");
+                            log.error("调用基础服务修改为已发货状态错误{}",orderCode);
                         }
                     }
                 }
@@ -341,15 +361,15 @@ public class NewRetailOrderService {
     public Tips deliverCallbackDeal(Map<String, Object> param) {
         //修改配送单状态 如果配送完成 修改订单状态为已完成
         Map<String, String> stringParams = Optional.ofNullable(param).map(
-                (v) -> {
-                    Map<String, String> params = v.entrySet().stream()
-                            .filter((e) -> StringUtils.isNotEmpty(e.getValue()))
-                            .collect(Collectors.toMap(
-                                    (e) -> e.getKey(),
-                                    (e) -> (String) e.getValue()
-                            ));
-                    return params;
-                }
+            (v) -> {
+                Map<String, String> params = v.entrySet().stream()
+                        .filter((e) -> StringUtils.isNotEmpty(e.getValue()))
+                        .collect(Collectors.toMap(
+                                (e) -> e.getKey(),
+                                (e) -> Objects.isNull(e.getValue())?null:e.getValue().toString()
+                        ));
+                return params;
+            }
         ).orElse(null);
         //验证签名
         ResponseEntity<Tips> backSignature = deliverService.backSignature(DeliverType.valueOf(deliverConfig.getType()), stringParams);
@@ -357,13 +377,14 @@ public class NewRetailOrderService {
         if (Objects.nonNull(backSignature) && backSignature.getStatusCode().is2xxSuccessful()) {
             log.debug("配送签名回调验证结果", backSignature.getBody());
             String orderCode = stringParams.get("order_id");
-            orderService.received(orderCode);
 
             switch ((int) param.get("order_status")) {
                 case 1:
                     deliverService.update(orderCode, new DeliverUpdate(orderCode, DeliverStatus.UNRECEIVE, null, null, null));
                     return Tips.of(HttpStatus.OK, "配送待接单");
                 case 2:
+                    //调用基础服务修改为配送中状态
+                    orderService.updateOrderStatus(orderCode,OrderStatus.DISPATCHING);
                     deliverService.update(orderCode, new DeliverUpdate(orderCode, DeliverStatus.WAIT_GET, stringParams.get("dm_name"), stringParams.get("dm_mobile"), null));
                     return Tips.of(HttpStatus.OK, "配送待取货");
                 case 3:
@@ -371,7 +392,8 @@ public class NewRetailOrderService {
                     return Tips.of(HttpStatus.OK, "配送配送中");
                 case 4:
                     deliverService.update(orderCode, new DeliverUpdate(orderCode, DeliverStatus.DONE, null, null, null));
-                    return Tips.of(HttpStatus.OK, "配送配送中");
+                    orderService.updateOrderStatus(orderCode,OrderStatus.RECEIVED);
+                    return Tips.of(HttpStatus.OK, "配送配送完成");
                 case 5:
                     deliverService.update(orderCode, new DeliverUpdate(orderCode, DeliverStatus.FAILURE, null, null, "已取消"));
                     return Tips.of(HttpStatus.OK, "配送已取消");
