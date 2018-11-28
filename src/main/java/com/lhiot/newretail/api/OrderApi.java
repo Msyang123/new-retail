@@ -134,7 +134,7 @@ public class OrderApi {
             if (Objects.nonNull(inputStream)) {
                 @Cleanup BufferedReader in = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                 String parameterString = StringUtils.collectionToDelimitedString(IOUtils.readLines(in),"");
-                log.info("request转换成字符串结果：", parameterString);
+                log.info("request转换成字符串结果：{}", parameterString);
                 if (StringUtils.isNotBlank(parameterString)) {
                     parameters = Jackson.map(parameterString);
                 }
