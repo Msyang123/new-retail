@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.lhiot.newretail.feign.type.AllowRefund;
 import com.lhiot.newretail.feign.type.ApplicationType;
 import com.lhiot.newretail.model.ReceivingWay;
 import io.swagger.annotations.ApiModel;
@@ -35,6 +36,8 @@ public class CreateOrderParam {
     private Date deliveryEndAt;
     @ApiModelProperty(notes = "配送时间 json格式如 {\"display\":\"立即配送\",\"startTime\":\"2018-08-15 11:30:00\",\"endTime\":\"2018-08-15 12:30:00\"}", dataType = "String")
     private String deliveryAt;
+    @ApiModelProperty(notes = "是否允许退款YES是NO否", dataType = "AllowRefund")
+    private AllowRefund allowRefund;
     @ApiModelProperty(notes = "商品列表", dataType = "OrderProduct")
     private List<OrderProduct> orderProducts;
     @ApiModelProperty(notes = "门店信息", dataType = "OrderStoreParam")

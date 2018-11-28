@@ -99,6 +99,22 @@ public class OrderApi {
         return ResponseEntity.ok(hdCallbackDeal);
     }
 
+    @PostMapping("/hai-ding/callback/old")
+    @ApiOperation(value = "海鼎回调处理订单-通过原来的处理过来的数据")
+    public ResponseEntity haidingCallback(@RequestBody String hdResult) {
+        log.info("haidingCallback:",hdResult);
+        if(hdResult.indexOf("store.skuchanged")!=-1){
+            return ResponseEntity.ok().build();
+        }
+        Map<String, Object> parameters = Jackson.map(hdResult);
+        Tips hdCallbackDeal = newRetailOrderService.hdCallbackDeal(parameters);
+        if (hdCallbackDeal.err()) {
+            log.info("haidingCallback处理错误:{}",hdCallbackDeal);
+        }
+        return ResponseEntity.ok(hdCallbackDeal);
+    }
+
+
     @PostMapping("/deliver/dada/callback")
     @ApiOperation(value = "达达配送回调处理订单")
     public ResponseEntity deliverCallback(HttpServletRequest request) {
