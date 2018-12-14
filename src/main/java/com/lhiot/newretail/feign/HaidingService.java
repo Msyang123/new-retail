@@ -4,10 +4,7 @@ import com.lhiot.newretail.feign.model.HdOrderInfo;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -31,4 +28,10 @@ public interface HaidingService {
      */
     @RequestMapping(value = "/hd/sku/{storeCode}", method = RequestMethod.POST)
     ResponseEntity<Map<String, Object>> querySku(@PathVariable("storeCode") String storeCode, @RequestBody String[] skuIds);
+
+    /**
+     * 海鼎取消订单
+     */
+    @RequestMapping(value = "/hd/order/{orderCode}/cancel", method = RequestMethod.PUT)
+    ResponseEntity cancel(@PathVariable String orderCode, @RequestParam String reason);
 }

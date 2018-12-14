@@ -77,6 +77,16 @@ public class OrderApi {
         return ResponseEntity.ok(pushOrderToStore);
     }
 
+    @ApiOperation(value = "批量取消")
+    @PostMapping("cancel")
+    public ResponseEntity<?> batchCancel(@RequestParam("reason") String reason,@RequestBody String[] orderCodes){
+        String result =newRetailOrderService.batchCancel(orderCodes,reason);
+        if(StringUtils.isBlank(result)){
+            return ResponseEntity.badRequest().body(result);
+        }
+        return ResponseEntity.ok().build();
+    }
+
     @ApiOperation(value = "货物从门店出门")
     @ApiImplicitParam(paramType = "path", name = "orderCode", dataType = "String", value = "业务订单id")
     @PutMapping("{orderCode}/finsh")

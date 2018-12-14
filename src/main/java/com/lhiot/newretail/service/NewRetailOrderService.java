@@ -2,7 +2,6 @@ package com.lhiot.newretail.service;
 
 import com.leon.microx.util.BeanUtils;
 import com.leon.microx.util.Calculator;
-import com.leon.microx.util.Jackson;
 import com.leon.microx.util.StringUtils;
 import com.leon.microx.web.result.Pages;
 import com.leon.microx.web.result.Tips;
@@ -66,9 +65,9 @@ public class NewRetailOrderService {
 
     public Tips createOrder(NewRetailOrder newRetailOrder) {
         //校验库存是否足够
-        String[] barCodeArr = newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new);
+        Object[] barCodeArr = newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new);
         String barCodes = StringUtils.join(",", barCodeArr);
-        ResponseEntity<Map<String, Object>> querySkuResponse = haidingService.querySku(newRetailOrder.getOrderStore().getStoreCode(), barCodeArr);
+        ResponseEntity<Map<String, Object>> querySkuResponse = haidingService.querySku(newRetailOrder.getOrderStore().getStoreCode(), newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new));
 
         List<Map> businvs = (List<Map>) querySkuResponse.getBody().get("businvs");
 
@@ -96,7 +95,7 @@ public class NewRetailOrderService {
                 .filter(productSpecification -> Objects.equals(product.getBarcode(), productSpecification.getBarcode()))
                 .forEach(item -> {
                     product.setSpecificationId(item.getId());//设置规格id
-                    product.setSpecificationQty(item.getSpecificationQty());//TODO 设置规格数量 客户端未填写 后续孚利购要调整
+                    product.setSpecificationQty(item.getSpecificationQty());
                     product.setTotalWeight(item.getWeight());
                 })
         );
@@ -116,7 +115,7 @@ public class NewRetailOrderService {
 
         OrderStore orderStore = new OrderStore();
 
-        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.NEW_RETAIL);
+        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode());
         if(Objects.isNull(storeResponseEntity)||storeResponseEntity.getStatusCode().isError()){
             log.error("创建订单查询基础服务门店信息失败,门店编码{}",newRetailOrder.getOrderStore().getStoreCode());
             orderStore.setStoreId(-1L);
@@ -168,6 +167,19 @@ public class NewRetailOrderService {
             return Tips.of(1, String.format("{\"hdOrderCode\":%s}", orderDetailResult.getCode()));
         }
         return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(responseEntity.getBody()));
+    }
+
+    public String  batchCancel(String[] orderCodes,String reason){
+        StringBuffer result = new StringBuffer();
+        for (String orderCode : orderCodes){
+            ResponseEntity responseEntity = haidingService.cancel(orderCode,reason);
+            if(Objects.isNull(responseEntity) || responseEntity.getStatusCode().isError()){
+                result.append(orderCode)
+                        .append(",");
+            }
+            log.info("取消海鼎订单返回结果:{}",responseEntity);
+        }
+        return result.toString();
     }
 
     //推送线上订单到新零售门店 （非海鼎系统）
@@ -292,7 +304,7 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
                     deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
                     deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.NEW_RETAIL);
+                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode());
                     if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
                         deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
                         deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());
