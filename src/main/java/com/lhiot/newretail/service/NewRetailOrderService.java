@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -64,6 +65,15 @@ public class NewRetailOrderService {
     }
 
     public Tips createOrder(NewRetailOrder newRetailOrder) {
+        //防止第三方重复调用，幂等处理
+        if(StringUtils.isNotBlank(newRetailOrder.getPartnerCode())){
+            //依据合作伙伴订单号判断是否已经存在
+            NewRetailOrder searchNewRetailOrder = newRetailOrderMapper.orderDetailByPartnerCode(newRetailOrder.getPartnerCode());
+            if (Objects.nonNull(searchNewRetailOrder)) {
+                log.warn("重复发送{}",searchNewRetailOrder);
+                return Tips.of(1, String.format("{\"hdOrderCode\":%s}", searchNewRetailOrder.getOrderCode()));
+            }
+        }
         //校验库存是否足够
         Object[] barCodeArr = newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new);
         String barCodes = StringUtils.join(",", barCodeArr);
@@ -95,7 +105,8 @@ public class NewRetailOrderService {
                 .filter(productSpecification -> Objects.equals(product.getBarcode(), productSpecification.getBarcode()))
                 .forEach(item -> {
                     product.setSpecificationId(item.getId());//设置规格id
-                    product.setSpecificationQty(item.getSpecificationQty());
+                    //product.setSpecificationQty(item.getSpecificationQty());
+                    product.setSpecificationQty(BigDecimal.ONE);
                     product.setTotalWeight(item.getWeight());
                 })
         );
@@ -108,14 +119,15 @@ public class NewRetailOrderService {
             OrderProduct orderProduct = new OrderProduct();
             BeanUtils.copyProperties(newRetailOrderProduct, orderProduct);
             orderProduct.setProductQty(newRetailOrderProduct.getProductQty().intValue());
-            orderProduct.setShelfQty(newRetailOrderProduct.getSpecificationQty());
+            orderProduct.setShelfQty(BigDecimal.ONE);
+            newRetailOrderProduct.setSpecificationQty(BigDecimal.ONE);
             orderProducts.add(orderProduct);
         });
         createOrderParam.setOrderProducts(orderProducts);
 
         OrderStore orderStore = new OrderStore();
 
-        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode());
+        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.APP);
         if(Objects.isNull(storeResponseEntity)||storeResponseEntity.getStatusCode().isError()){
             log.error("创建订单查询基础服务门店信息失败,门店编码{}",newRetailOrder.getOrderStore().getStoreCode());
             orderStore.setStoreId(-1L);
@@ -127,7 +139,7 @@ public class NewRetailOrderService {
         orderStore.setOperationUser(newRetailOrder.getOrderStore().getOperationUser());
         createOrderParam.setOrderStore(orderStore);
         createOrderParam.setUserId(9999L);//由于没有用户信息 故默认
-        createOrderParam.setApplicationType(ApplicationType.NEW_RETAIL);
+        createOrderParam.setApplicationType(ApplicationType.APP);
         createOrderParam.setOrderType("FREEGO");
         createOrderParam.setAllowRefund(AllowRefund.YES);//是否订单允许退款
         //发送基础服务创建订单
@@ -145,7 +157,7 @@ public class NewRetailOrderService {
             //推送到海鼎
             HdOrderInfo hdOrderInfo = new HdOrderInfo();
             BeanUtils.copyProperties(newRetailOrder, hdOrderInfo);
-            hdOrderInfo.setApplyType(ApplicationType.NEW_RETAIL);
+            hdOrderInfo.setApplyType(ApplicationType.APP);
             hdOrderInfo.setCode(newRetailOrder.getOrderCode());
             hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
             hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
@@ -153,7 +165,7 @@ public class NewRetailOrderService {
             hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
             hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
             hdOrderInfo.setUserId(9999L);
-            hdOrderInfo.setRemark(ApplicationType.NEW_RETAIL.getDescription()+"-"+newRetailOrder.getRemark());
+            hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
             ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             if (Objects.nonNull(haidingReduceResponse) && haidingReduceResponse.getStatusCode().is2xxSuccessful()) {
                 //发送海鼎订单成功
@@ -180,6 +192,26 @@ public class NewRetailOrderService {
             log.info("取消海鼎订单返回结果:{}",responseEntity);
         }
         return result.toString();
+    }
+
+    public void batchPush(String[] orderCodes){
+        for(String orderCode: orderCodes){
+            NewRetailOrder newRetailOrder = newRetailOrderMapper.orderDetailByCode(orderCode);
+            //推送到海鼎
+            HdOrderInfo hdOrderInfo = new HdOrderInfo();
+            BeanUtils.copyProperties(newRetailOrder, hdOrderInfo);
+            hdOrderInfo.setApplyType(ApplicationType.APP);
+            hdOrderInfo.setCode(newRetailOrder.getOrderCode());
+            hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
+            hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
+            hdOrderInfo.setStoreName(newRetailOrder.getOrderStore().getStoreName());
+            hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
+            hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
+            hdOrderInfo.setUserId(9999L);
+            hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
+            ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
+            log.info(haidingReduceResponse.getBody());
+        }
     }
 
     //推送线上订单到新零售门店 （非海鼎系统）
@@ -247,7 +279,7 @@ public class NewRetailOrderService {
     }
 
     public NewRetailOrder getOrderByOrderCode(String orderCode) {
-        NewRetailOrder newRetailOrder = newRetailOrderMapper.orderDetialByCode(orderCode);
+        NewRetailOrder newRetailOrder = newRetailOrderMapper.orderDetailByCode(orderCode);
         if (Objects.nonNull(newRetailOrder)) {
             newRetailOrder.setOrderProducts(orderProductMapper.listByOrderCode(orderCode));
         }
@@ -287,7 +319,7 @@ public class NewRetailOrderService {
                     DeliverOrder deliverOrder = new DeliverOrder();
                     deliverOrder.setAddress(orderDetailResult.getAddress());
                     deliverOrder.setAmountPayable(orderDetailResult.getAmountPayable());
-                    deliverOrder.setApplyType(ApplicationType.NEW_RETAIL);
+                    deliverOrder.setApplyType(ApplicationType.APP);
                     deliverOrder.setBackUrl(deliverConfig.getBackUrl());//配置回调
                     deliverOrder.setContactPhone(orderDetailResult.getContactPhone());
                     deliverOrder.setCouponAmount(orderDetailResult.getCouponAmount());
@@ -304,7 +336,7 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
                     deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
                     deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode());
+                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.APP);
                     if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
                         deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
                         deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());

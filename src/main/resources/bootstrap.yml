@@ -2,7 +2,7 @@ server:
   port: 5111
 spring:
   application:
-    name: new-retail-server-v1-0
+    name: new-retail-server-v1-1
   cloud:
     config:
       name: rabbit-mq, application, new-retail-server-v1-0
@@ -22,4 +22,4 @@ eureka:
     status-page-url-path: /swagger-ui.html
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_REPLICAS_LIST:http://172.16.10.202:1111/eureka}
+      defaultZone: ${EUREKA_REPLICAS_LIST:http://172.16.10.203:1111/eureka}
