@@ -4,7 +4,7 @@
 
     <!-- 数据库字段对象关系映射 -->
     <resultMap id="BaseResultMap" type="com.lhiot.newretail.model.NewRetailOrder" >
-        <id column="order_code" javaType="String" jdbcType="VARCHAR" property="orderCode" />
+        <id column="n_order_code" javaType="String" jdbcType="VARCHAR" property="orderCode" />
         <result column="address" property="address" />
         <result column="amount_payable" property="amountPayable" />
         <result column="contact_phone" property="contactPhone" />
@@ -17,6 +17,7 @@
         <result column="remark" property="remark" />
         <result column="total_amount" property="totalAmount" />
         <result column="pay_type" property="payType" />
+        <result column="partner_code" property="partnerCode" />
         <result column="operation_user" property="orderStore.operationUser" />
         <result column="store_code" property="orderStore.storeCode" />
         <result column="store_name" property="orderStore.storeName" />
@@ -30,6 +31,7 @@
             <result column="specification_qty" property="specificationQty" />
             <result column="total_price" property="totalPrice" />
             <result column="total_weight" property="totalWeight" />
+            <result column="op_order_code" property="orderCode" />
         </collection>
     </resultMap>
 
@@ -83,6 +85,9 @@
             <if test="orderStore.storeName != null ">
                 store_name,
             </if>
+            <if test="partnerCode != null ">
+                partner_code,
+            </if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides="," >
             #{orderCode},
@@ -131,33 +136,55 @@
             <if test="orderStore.storeName != null ">
                 #{orderStore.storeName},
             </if>
+            <if test="partnerCode != null ">
+                #{partnerCode},
+            </if>
         </trim>
     </insert>
 
     <!-- base查询字段  -->
     <sql id="Base_Column_List" >
         <trim suffixOverrides="," >
-            order_code,
-            address,
-            amount_payable,
-            contact_phone,
-            coupon_amount,
-            delivery_amount,
-            deliver_time,
-            nickname,
-            receive_user,
-            receiving_way,
-            remark,
-            total_amount,
-            pay_type,
-            store_code,
-            store_name,
-            operation_user,
+            n.order_code as n_order_code,
+            n.address,
+            n.amount_payable,
+            n.contact_phone,
+            n.coupon_amount,
+            n.delivery_amount,
+            n.deliver_time,
+            n.nickname,
+            n.receive_user,
+            n.receiving_way,
+            n.remark,
+            n.total_amount,
+            n.pay_type,
+            n.store_code,
+            n.store_name,
+            n.operation_user,
+            n.partner_code,
+            op.id,
+            op.barcode,
+            op.discount_price,
+            op.product_name,
+            op.product_qty,
+            op.specification_qty,
+            op.total_price,
+            op.total_weight,
+            op.order_code as op_order_code,
         </trim>
     </sql>
-    <select id="orderDetialByCode" resultMap="BaseResultMap"
+    <select id="orderDetailByCode" resultMap="BaseResultMap"
             parameterType="String">
         select <include refid="Base_Column_List" />
-        from new_retail_order where order_code=#{0}
+        from new_retail_order n
+        left join order_product op on n.order_code=op.order_code
+        where n.order_code=#{0}
+    </select>
+    <select id="orderDetailByPartnerCode" resultMap="BaseResultMap"
+            parameterType="String">
+        select <include refid="Base_Column_List" />
+        from new_retail_order n
+        left join order_product op on n.order_code=op.order_code
+        where n.partner_code=#{0}
     </select>
 </mapper>

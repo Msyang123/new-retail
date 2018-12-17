@@ -28,6 +28,13 @@ public interface NewRetailOrderMapper {
      * @param orderCode
      * @return
      */
-    NewRetailOrder orderDetialByCode(String orderCode);
+    NewRetailOrder orderDetailByCode(String orderCode);
+
+    /**
+     * 依据合作者订单号查询订单详情
+     * @param partnerCode
+     * @return
+     */
+    NewRetailOrder orderDetailByPartnerCode(String partnerCode);
 
 }

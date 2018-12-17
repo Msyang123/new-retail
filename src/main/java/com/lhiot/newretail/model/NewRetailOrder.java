@@ -41,6 +41,9 @@ public class NewRetailOrder{
     private Integer totalAmount;
     @ApiModelProperty(notes = "支付类型 alipay-支付宝 wechat-微信", dataType = "PayPlatformType", required = true)
     private PayPlatformType payType;
+    @ApiModelProperty(notes = "合作伙伴订单编码", dataType = "String")
+    private String partnerCode;
+
 
     @ApiModelProperty(notes = "商品列表", dataType = "OrderProduct", required = true)
     private List<NewRetailOrderProduct> orderProducts;
