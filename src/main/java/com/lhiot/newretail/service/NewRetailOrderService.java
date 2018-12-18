@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -166,6 +167,7 @@ public class NewRetailOrderService {
             hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
             hdOrderInfo.setUserId(9999L);
             hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
+            hdOrderInfo.setPayAt(Date.from(Instant.now()));
             ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             if (Objects.nonNull(haidingReduceResponse) && haidingReduceResponse.getStatusCode().is2xxSuccessful()) {
                 //发送海鼎订单成功
