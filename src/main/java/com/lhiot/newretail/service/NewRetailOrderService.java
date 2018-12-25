@@ -76,7 +76,7 @@ public class NewRetailOrderService {
             }
         }
         //校验库存是否足够
-        Object[] barCodeArr = newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new);
+        /*Object[] barCodeArr = newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new);
         String barCodes = StringUtils.join(",", barCodeArr);
         ResponseEntity<Map<String, Object>> querySkuResponse = haidingService.querySku(newRetailOrder.getOrderStore().getStoreCode(), newRetailOrder.getOrderProducts().parallelStream().map(NewRetailOrderProduct::getBarcode).toArray(String[]::new));
 
@@ -107,10 +107,11 @@ public class NewRetailOrderService {
                 .forEach(item -> {
                     product.setSpecificationId(item.getId());//设置规格id
                     //product.setSpecificationQty(item.getSpecificationQty());
-                    product.setSpecificationQty(BigDecimal.ONE);
+                    //不需要传递，孚利购传递product.setSpecificationQty(BigDecimal.ONE);
                     product.setTotalWeight(item.getWeight());
                 })
         );
+        */
 
         CreateOrderParam createOrderParam = new CreateOrderParam();
         BeanUtils.copyProperties(newRetailOrder, createOrderParam);
@@ -120,8 +121,8 @@ public class NewRetailOrderService {
             OrderProduct orderProduct = new OrderProduct();
             BeanUtils.copyProperties(newRetailOrderProduct, orderProduct);
             orderProduct.setProductQty(newRetailOrderProduct.getProductQty().intValue());
-            orderProduct.setShelfQty(BigDecimal.ONE);
-            newRetailOrderProduct.setSpecificationQty(BigDecimal.ONE);
+            orderProduct.setShelfQty(newRetailOrderProduct.getSpecificationQty());//不需要传递，孚利购传递
+            //不需要传递，孚利购传递newRetailOrderProduct.setSpecificationQty(BigDecimal.ONE);
             orderProducts.add(orderProduct);
         });
         createOrderParam.setOrderProducts(orderProducts);

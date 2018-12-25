@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @Component
-@FeignClient("thirdparty-service-v1-0")
+@FeignClient("THIRDPARTY-SERVICE-V1-0")
 public interface HaidingService {
 
     /**
@@ -33,5 +33,5 @@ public interface HaidingService {
      * 海鼎取消订单
      */
     @RequestMapping(value = "/hd/order/{orderCode}/cancel", method = RequestMethod.PUT)
-    ResponseEntity cancel(@PathVariable String orderCode, @RequestParam String reason);
+    ResponseEntity cancel(@PathVariable("orderCode") String orderCode, @RequestParam("reason") String reason);
 }
