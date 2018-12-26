@@ -1,5 +1,0 @@
-info:
-  build:
-    version: @project.version@
-    artifact: @project.artifactId@
-    group: @project.groupId@
