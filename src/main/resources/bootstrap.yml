@@ -2,7 +2,7 @@ server:
   port: 5111
 spring:
   application:
-    name: new-retail-server-v1-1
+    name: new-retail-server-v1-2
   cloud:
     config:
       name: rabbit-mq, application, new-retail-server-v1-0
@@ -12,10 +12,11 @@ spring:
       discovery:
         enabled: true
         service-id: microx-config
-new-retail-service:
-  snowflake-id:
-    data-center-id: 5
-    worker-id: 1
+microx-common:
+  microx-web:
+    id-generator:
+      snowflake-worker-id: ${WORKER_ID:8}
+      snowflake-data-center-id: 5
 eureka:
   instance:
     prefer-ip-address: true
