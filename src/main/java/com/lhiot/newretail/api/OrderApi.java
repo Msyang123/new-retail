@@ -77,7 +77,7 @@ public class OrderApi {
         return ResponseEntity.ok(pushOrderToStore);
     }
 
-    @ApiOperation(value = "批量取消")
+/*    @ApiOperation(value = "批量取消")
     @PostMapping("batch-cancel")
     public ResponseEntity<?> batchCancel(@RequestParam("reason") String reason,@RequestBody String[] orderCodes){
         String result =newRetailOrderService.batchCancel(orderCodes,reason);
@@ -92,7 +92,7 @@ public class OrderApi {
     public ResponseEntity<?> batchPush(@RequestBody String[] orderCodes){
         newRetailOrderService.batchPush(orderCodes);
         return ResponseEntity.ok().build();
-    }
+    }*/
 
 
 
@@ -153,9 +153,10 @@ public class OrderApi {
             if (Objects.nonNull(inputStream)) {
                 @Cleanup BufferedReader in = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                 String parameterString = StringUtils.collectionToDelimitedString(IOUtils.readLines(in),"");
-                log.info("request转换成字符串结果：{}", parameterString);
-                if (StringUtils.isNotBlank(parameterString)) {
-                    parameters = Jackson.map(parameterString);
+                String resultStr=parameterString.replaceAll("\"\\{","{").replaceAll("}\"","}").replaceAll("\\\\","");
+                log.info("request转换成字符串结果：{}", resultStr);
+                if (StringUtils.isNotBlank(resultStr)) {
+                    parameters = Jackson.map(resultStr);
                 }
             }
         } catch (IOException ignore) {

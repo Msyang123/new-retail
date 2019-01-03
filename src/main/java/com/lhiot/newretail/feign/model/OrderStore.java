@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.Instant;
@@ -16,5 +17,6 @@ public class OrderStore {
     private String storeCode;
     private String storeName;
     private String operationUser;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createAt = Date.from(Instant.now());
 }

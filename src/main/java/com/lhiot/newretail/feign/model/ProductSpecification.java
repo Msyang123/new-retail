@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lhiot.newretail.feign.type.AvailableStatus;
 import com.lhiot.newretail.feign.type.InventorySpecification;
 import io.swagger.annotations.ApiModel;
@@ -34,5 +35,6 @@ public class ProductSpecification {
     @ApiModelProperty(notes = "是否可用：YES-可用，NO-不可用", dataType = "AvailableStatus")
     private AvailableStatus availableStatus;
     @ApiModelProperty(notes = "创建时间", dataType = "Date", readOnly = true)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createAt;
 }

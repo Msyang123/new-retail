@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lhiot.newretail.feign.type.ApplicationType;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -42,6 +43,7 @@ public class HdOrderInfo {
 
     private String returnReason;
     private String hdOrderCode;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date payAt;
 
     @ApiModelProperty(notes = "收货地址：门店自提订单填写门店地址", dataType = "OrderProduct")

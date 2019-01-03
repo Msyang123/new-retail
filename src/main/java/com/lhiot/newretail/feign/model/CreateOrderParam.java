@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lhiot.newretail.feign.type.AllowRefund;
 import com.lhiot.newretail.feign.type.ApplicationType;
 import com.lhiot.newretail.model.ReceivingWay;
@@ -33,6 +34,7 @@ public class CreateOrderParam {
     private String contactPhone;
     private String remark;
     @ApiModelProperty(notes = "提货截止时间", dataType = "String")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date deliveryEndAt;
     @ApiModelProperty(notes = "配送时间 json格式如 {\"display\":\"立即配送\",\"startTime\":\"2018-08-15 11:30:00\",\"endTime\":\"2018-08-15 12:30:00\"}", dataType = "String")
     private String deliveryAt;

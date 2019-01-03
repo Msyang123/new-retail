@@ -3,7 +3,6 @@ package com.lhiot.newretail.service;
 import com.leon.microx.util.BeanUtils;
 import com.leon.microx.util.Calculator;
 import com.leon.microx.util.StringUtils;
-import com.leon.microx.web.result.Pages;
 import com.leon.microx.web.result.Tips;
 import com.lhiot.newretail.config.NewRetailFreegoConfig;
 import com.lhiot.newretail.feign.BaseDataService;
@@ -20,10 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -290,7 +287,7 @@ public class NewRetailOrderService {
     }
 
     //处理海鼎回调
-    public Tips hdCallbackDeal(@RequestBody Map<String, Object> map) {
+    public Tips hdCallbackDeal(Map<String, Object> map) {
         Map<String, String> contentMap = (Map<String, String>)map.get("content");
 
         log.info("content = " + contentMap.toString());

@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lhiot.newretail.feign.type.OrderRefundStatus;
 import com.lhiot.newretail.feign.type.RefundType;
 import lombok.Data;
@@ -20,6 +21,8 @@ public class OrderRefund {
     private String reason;
     private OrderRefundStatus orderRefundStatus;
     private RefundType refundType;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date applyAt = Date.from(Instant.now());
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date disposeAt;
 }

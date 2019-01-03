@@ -1,5 +1,6 @@
 package com.lhiot.newretail.feign.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.lhiot.newretail.feign.type.AllowRefund;
 import com.lhiot.newretail.feign.type.ApplicationType;
 import com.lhiot.newretail.feign.type.HdStatus;
@@ -39,6 +40,7 @@ public class OrderDetailResult {
     @ApiModelProperty(notes = "海鼎状态", dataType = "HdStatus")
     private HdStatus hdStatus = HdStatus.NOT_SEND;
     @ApiModelProperty(notes = "海鼎备货时间",dataType = "Date")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date hdStockAt;
     @ApiModelProperty(notes = "订单状态", dataType = "OrderStatus")
     private OrderStatus status = OrderStatus.WAIT_PAYMENT;
@@ -50,7 +52,8 @@ public class OrderDetailResult {
     private String address;
     @ApiModelProperty(notes = "备注", dataType = "String")
     private String remark;
-    @ApiModelProperty(notes = "提货截止时间", dataType = "String")
+    @ApiModelProperty(notes = "提货截止时间", dataType = "Date")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date deliveryEndTime;
     @ApiModelProperty(notes = "海鼎的订单编码", dataType = "String")
     private String hdOrderCode;
@@ -61,8 +64,9 @@ public class OrderDetailResult {
     @ApiModelProperty(notes = "是否允许退款YES是NO否", dataType = "AllowRefund")
     private AllowRefund allowRefund = AllowRefund.YES;
     @ApiModelProperty(notes = "订单创建时间",dataType = "Date")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createAt;
-    @ApiModelProperty(notes = "订单商品", dataType = "java.util.list")
+    @ApiModelProperty(notes = "订单商品", dataType = "List")
     private List<OrderProduct> orderProductList;
     @ApiModelProperty(notes = "订单门店信息", dataType = "OrderStore")
     private OrderStore orderStore;
