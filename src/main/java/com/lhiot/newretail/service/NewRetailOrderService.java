@@ -126,12 +126,14 @@ public class NewRetailOrderService {
 
         OrderStore orderStore = new OrderStore();
 
-        ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.APP);
-        if(Objects.isNull(storeResponseEntity)||storeResponseEntity.getStatusCode().isError()){
+        ResponseEntity storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.APP);
+        if(storeResponseEntity.getStatusCode().isError()){
             log.error("创建订单查询基础服务门店信息失败,门店编码{}",newRetailOrder.getOrderStore().getStoreCode());
             orderStore.setStoreId(-1L);
         }else{
-            orderStore.setStoreId(storeResponseEntity.getBody().getId());
+            if(Objects.nonNull(storeResponseEntity.getBody())) {
+                orderStore.setStoreId(((Store)storeResponseEntity.getBody()).getId());
+            }
         }
         orderStore.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
         orderStore.setStoreName(newRetailOrder.getOrderStore().getStoreName());
@@ -142,10 +144,10 @@ public class NewRetailOrderService {
         createOrderParam.setOrderType("FREEGO");
         createOrderParam.setAllowRefund(AllowRefund.YES);//是否订单允许退款
         //发送基础服务创建订单
-        ResponseEntity<OrderDetailResult> responseEntity = orderService.createOrder(createOrderParam);
+        ResponseEntity responseEntity = orderService.createOrder(createOrderParam);
 
-        if (Objects.nonNull(responseEntity) && responseEntity.getStatusCode().is2xxSuccessful()) {
-            OrderDetailResult orderDetailResult = responseEntity.getBody();
+        if (responseEntity.getStatusCode().is2xxSuccessful()) {
+            OrderDetailResult orderDetailResult = (OrderDetailResult)responseEntity.getBody();
 
             //保存本地订单数据
             newRetailOrder.setOrderCode(orderDetailResult.getCode());
@@ -166,7 +168,7 @@ public class NewRetailOrderService {
             hdOrderInfo.setUserId(9999L);
             hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
             hdOrderInfo.setPayAt(Date.from(Instant.now()));
-            ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
+            ResponseEntity haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             if (Objects.nonNull(haidingReduceResponse) && haidingReduceResponse.getStatusCode().is2xxSuccessful()) {
                 //发送海鼎订单成功
                 log.info("发送海鼎订单成功:{}", orderDetailResult.getCode());
@@ -253,12 +255,12 @@ public class NewRetailOrderService {
      */
     public Tips orderOutOfStore(String orderCode) {
         //查询订单信息
-        ResponseEntity<OrderDetailResult> orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
+        ResponseEntity orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
         if (Objects.isNull(orderDetailResultResponseEntity)
                 || orderDetailResultResponseEntity.getStatusCode().isError()) {
             return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
         }
-        OrderDetailResult orderDetailResult = orderDetailResultResponseEntity.getBody();
+        OrderDetailResult orderDetailResult = (OrderDetailResult)orderDetailResultResponseEntity.getBody();
         if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
             //门店自提订单 直接结束
             ResponseEntity receivedResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.RECEIVED);
@@ -293,12 +295,12 @@ public class NewRetailOrderService {
         log.info("content = " + contentMap.toString());
         String orderCode = contentMap.get("front_order_id");
         //查询订单信息
-        ResponseEntity<OrderDetailResult> orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
+        ResponseEntity orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
         if (Objects.isNull(orderDetailResultResponseEntity)
                 || orderDetailResultResponseEntity.getStatusCode().isError()) {
             return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
         }
-        OrderDetailResult orderDetailResult = orderDetailResultResponseEntity.getBody();
+        OrderDetailResult orderDetailResult = (OrderDetailResult)orderDetailResultResponseEntity.getBody();
         // 所有订单推送类消息
         if ("order".equals(map.get("group"))) {
             // 订单备货
@@ -336,10 +338,10 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
                     deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
                     deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity<Store> storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.APP);
+                    ResponseEntity storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.APP);
                     if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
-                        deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());
+                        deliverOrder.setLat(((Store)storeResponseEntity.getBody()).getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
+                        deliverOrder.setLng(((Store)storeResponseEntity.getBody()).getLongitude().doubleValue());
                     } else {
                         log.error("查询门店信息失败", orderDetailResult.getOrderStore().getStoreCode());
                         deliverOrder.setLat(0.00);
@@ -374,7 +376,7 @@ public class NewRetailOrderService {
                     deliverOrder.setDeliverOrderProductList(deliverProductList);//填充订单商品
 
                     //发送达达配送
-                    ResponseEntity<Tips> deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
+                    ResponseEntity deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
 
                     if (Objects.nonNull(deliverResponseEntity) && deliverResponseEntity.getStatusCode().is2xxSuccessful()) {
                         //设置成已发货
@@ -416,7 +418,7 @@ public class NewRetailOrderService {
             }
         ).orElse(null);
         //验证签名
-        ResponseEntity<Tips> backSignature = deliverService.backSignature(DeliverType.valueOf(deliverConfig.getType()), stringParams);
+        ResponseEntity backSignature = deliverService.backSignature(DeliverType.valueOf(deliverConfig.getType()), stringParams);
 
         if (Objects.nonNull(backSignature) && backSignature.getStatusCode().is2xxSuccessful()) {
             log.debug("配送签名回调验证结果:{}", backSignature.getBody());
