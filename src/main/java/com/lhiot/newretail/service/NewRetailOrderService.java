@@ -1,8 +1,10 @@
 package com.lhiot.newretail.service;
 
+import com.leon.microx.exception.ApiException;
 import com.leon.microx.util.BeanUtils;
 import com.leon.microx.util.Calculator;
 import com.leon.microx.util.StringUtils;
+import com.leon.microx.util.Try;
 import com.leon.microx.web.result.Tips;
 import com.lhiot.newretail.config.NewRetailFreegoConfig;
 import com.lhiot.newretail.feign.BaseDataService;
@@ -126,13 +128,16 @@ public class NewRetailOrderService {
 
         OrderStore orderStore = new OrderStore();
 
-        ResponseEntity storeResponseEntity = baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.APP);
-        if(storeResponseEntity.getStatusCode().isError()){
+        ResponseEntity<Store> storeResponseEntity = Try.<ResponseEntity<Store>>run(
+                () ->baseDataService.findStoreByCode(newRetailOrder.getOrderStore().getStoreCode(),ApplicationType.APP)
+        ).orElseThrow(() -> new ApiException("查询门店失败", 400));
+
+        if(storeResponseEntity.getStatusCode().isError()||Objects.isNull(storeResponseEntity.getBody())){
             log.error("创建订单查询基础服务门店信息失败,门店编码{}",newRetailOrder.getOrderStore().getStoreCode());
             orderStore.setStoreId(-1L);
         }else{
             if(Objects.nonNull(storeResponseEntity.getBody())) {
-                orderStore.setStoreId(((Store)storeResponseEntity.getBody()).getId());
+                orderStore.setStoreId(storeResponseEntity.getBody().getId());
             }
         }
         orderStore.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
@@ -144,10 +149,12 @@ public class NewRetailOrderService {
         createOrderParam.setOrderType("FREEGO");
         createOrderParam.setAllowRefund(AllowRefund.YES);//是否订单允许退款
         //发送基础服务创建订单
-        ResponseEntity responseEntity = orderService.createOrder(createOrderParam);
+        ResponseEntity<OrderDetailResult> responseEntity = Try.<ResponseEntity<OrderDetailResult>>run(
+                () ->orderService.createOrder(createOrderParam)
+        ).orElseThrow(() -> new ApiException("创建订单失败", 400));
 
-        if (responseEntity.getStatusCode().is2xxSuccessful()) {
-            OrderDetailResult orderDetailResult = (OrderDetailResult)responseEntity.getBody();
+        if (responseEntity.getStatusCode().is2xxSuccessful()&&Objects.nonNull(responseEntity.getBody())) {
+            OrderDetailResult orderDetailResult = responseEntity.getBody();
 
             //保存本地订单数据
             newRetailOrder.setOrderCode(orderDetailResult.getCode());
@@ -255,12 +262,15 @@ public class NewRetailOrderService {
      */
     public Tips orderOutOfStore(String orderCode) {
         //查询订单信息
-        ResponseEntity orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
+        ResponseEntity<OrderDetailResult> orderDetailResultResponseEntity = Try.<ResponseEntity<OrderDetailResult>>run(
+                () ->orderService.orderDetail(orderCode, true, false)
+        ).orElseThrow(() -> new ApiException("查询订单失败", 400));
         if (Objects.isNull(orderDetailResultResponseEntity)
-                || orderDetailResultResponseEntity.getStatusCode().isError()) {
+                || orderDetailResultResponseEntity.getStatusCode().isError()
+                ||Objects.isNull(orderDetailResultResponseEntity.getBody())) {
             return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
         }
-        OrderDetailResult orderDetailResult = (OrderDetailResult)orderDetailResultResponseEntity.getBody();
+        OrderDetailResult orderDetailResult = orderDetailResultResponseEntity.getBody();
         if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
             //门店自提订单 直接结束
             ResponseEntity receivedResponseEntity = orderService.updateOrderStatus(orderCode,OrderStatus.RECEIVED);
@@ -295,113 +305,124 @@ public class NewRetailOrderService {
         log.info("content = " + contentMap.toString());
         String orderCode = contentMap.get("front_order_id");
         //查询订单信息
-        ResponseEntity orderDetailResultResponseEntity = orderService.orderDetail(orderCode, true, false);
-        if (Objects.isNull(orderDetailResultResponseEntity)
-                || orderDetailResultResponseEntity.getStatusCode().isError()) {
-            return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
-        }
-        OrderDetailResult orderDetailResult = (OrderDetailResult)orderDetailResultResponseEntity.getBody();
-        // 所有订单推送类消息
-        if ("order".equals(map.get("group"))) {
-            // 订单备货
-            if ("order.shipped".equals(map.get("topic"))) {
-                log.info("订单备货回调********");
-                if(!Objects.equals(orderDetailResult.getStatus(),OrderStatus.WAIT_SEND_OUT)){
-                    //如果已经处理此订单信息，就不重复处理
-                    return Tips.of(HttpStatus.OK, orderCode);
-                }
-                //如果送货上门 发送订单到配送中心
-
-                //门店自提 此处不做处理，等待孚利购推送订单出店接口数据再修改订单完成
-                if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
-                    //调用基础服务修改为已发货状态baseUrl
-                    orderService.updateOrderStatus(orderDetailResult.getCode(),OrderStatus.RECEIVED);
-                } else {
-                    //发送到配送(达达)
-                    DeliverOrder deliverOrder = new DeliverOrder();
-                    deliverOrder.setAddress(orderDetailResult.getAddress());
-                    deliverOrder.setAmountPayable(orderDetailResult.getAmountPayable());
-                    deliverOrder.setApplyType(ApplicationType.APP);
-                    deliverOrder.setBackUrl(deliverConfig.getBackUrl());//配置回调
-                    deliverOrder.setContactPhone(orderDetailResult.getContactPhone());
-                    deliverOrder.setCouponAmount(orderDetailResult.getCouponAmount());
-
-                    ZoneId zoneId = ZoneId.systemDefault();
-                    LocalDateTime current = LocalDateTime.now();
-                    ZonedDateTime zdt = current.atZone(zoneId);
-                    Date dateStart = Date.from(zdt.toInstant());
-
-                    deliverOrder.setCreateAt(dateStart);
-
-                    current.plusHours(1);//加一个小时
-                    Date dateEnd = Date.from(zdt.toInstant());
-                    deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
-                    deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
-                    deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
-                    ResponseEntity storeResponseEntity = baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(),ApplicationType.APP);
-                    if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        deliverOrder.setLat(((Store)storeResponseEntity.getBody()).getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
-                        deliverOrder.setLng(((Store)storeResponseEntity.getBody()).getLongitude().doubleValue());
-                    } else {
-                        log.error("查询门店信息失败", orderDetailResult.getOrderStore().getStoreCode());
-                        deliverOrder.setLat(0.00);
-                        deliverOrder.setLng(0.00);
+        try {
+            ResponseEntity<OrderDetailResult> orderDetailResultResponseEntity = Try.<ResponseEntity<OrderDetailResult>>run(
+                    () ->orderService.orderDetail(orderCode, true, false)
+            ).orElseThrow(() -> new ApiException("查询订单失败", 400));
+            if (Objects.isNull(orderDetailResultResponseEntity)
+                    || orderDetailResultResponseEntity.getStatusCode().isError()
+                    ||Objects.isNull(orderDetailResultResponseEntity.getBody())) {
+                return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
+            }
+            OrderDetailResult orderDetailResult = orderDetailResultResponseEntity.getBody();
+            // 所有订单推送类消息
+            if ("order".equals(map.get("group"))) {
+                // 订单备货
+                if ("order.shipped".equals(map.get("topic"))) {
+                    log.info("订单备货回调********");
+                    if (!Objects.equals(orderDetailResult.getStatus(), OrderStatus.WAIT_SEND_OUT)) {
+                        //如果已经处理此订单信息，就不重复处理
+                        return Tips.of(HttpStatus.OK, orderCode);
                     }
-                    deliverOrder.setOrderId(orderDetailResult.getId());
-                    deliverOrder.setOrderCode(orderDetailResult.getCode());
-                    deliverOrder.setReceiveUser(orderDetailResult.getReceiveUser());
-                    deliverOrder.setRemark(orderDetailResult.getRemark());
-                    deliverOrder.setStoreCode(orderDetailResult.getOrderStore().getStoreCode());
-                    deliverOrder.setStoreName(orderDetailResult.getOrderStore().getStoreName());
-                    deliverOrder.setTotalAmount(orderDetailResult.getTotalAmount());
-                    deliverOrder.setUserId(orderDetailResult.getUserId());
+                    //如果送货上门 发送订单到配送中心
 
-                    List<DeliverProduct> deliverProductList = new ArrayList<>(orderDetailResult.getOrderProductList().size());
-                    orderDetailResult.getOrderProductList().forEach(item -> {
-                        DeliverProduct deliverProduct = new DeliverProduct();
-                        deliverProduct.setBarcode(item.getBarcode());
-                        deliverProduct.setBaseWeight(item.getTotalWeight().doubleValue());
-                        deliverProduct.setDeliverBaseOrderId(orderDetailResult.getId());
-                        deliverProduct.setDiscountPrice(item.getDiscountPrice());
-                        deliverProduct.setImage(item.getImage());
-                        deliverProduct.setLargeImage(item.getImage());
-                        deliverProduct.setPrice(item.getTotalPrice());
-                        deliverProduct.setProductName(item.getProductName());
-                        deliverProduct.setProductQty(item.getProductQty());
-                        deliverProduct.setSmallImage(item.getImage());
-                        deliverProduct.setStandardPrice((int) Calculator.div(item.getTotalPrice(), item.getProductQty()));
-                        deliverProduct.setStandardQty(Double.valueOf(item.getShelfQty().toString()));
-                        deliverProductList.add(deliverProduct);
-                    });
-                    deliverOrder.setDeliverOrderProductList(deliverProductList);//填充订单商品
+                    //门店自提 此处不做处理，等待孚利购推送订单出店接口数据再修改订单完成
+                    if (Objects.equals(orderDetailResult.getReceivingWay(), ReceivingWay.TO_THE_STORE)) {
+                        //调用基础服务修改为已发货状态baseUrl
+                        orderService.updateOrderStatus(orderDetailResult.getCode(), OrderStatus.RECEIVED);
+                    } else {
+                        //发送到配送(达达)
+                        DeliverOrder deliverOrder = new DeliverOrder();
+                        deliverOrder.setAddress(orderDetailResult.getAddress());
+                        deliverOrder.setAmountPayable(orderDetailResult.getAmountPayable());
+                        deliverOrder.setApplyType(ApplicationType.APP);
+                        deliverOrder.setBackUrl(deliverConfig.getBackUrl());//配置回调
+                        deliverOrder.setContactPhone(orderDetailResult.getContactPhone());
+                        deliverOrder.setCouponAmount(orderDetailResult.getCouponAmount());
 
-                    //发送达达配送
-                    ResponseEntity deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
+                        ZoneId zoneId = ZoneId.systemDefault();
+                        LocalDateTime current = LocalDateTime.now();
+                        ZonedDateTime zdt = current.atZone(zoneId);
+                        Date dateStart = Date.from(zdt.toInstant());
 
-                    if (Objects.nonNull(deliverResponseEntity) && deliverResponseEntity.getStatusCode().is2xxSuccessful()) {
-                        //设置成已发货
-                        ResponseEntity sendOutResponse = orderService.updateOrderStatus(orderDetailResult.getCode(),OrderStatus.SEND_OUT);
-                        if (Objects.nonNull(sendOutResponse) && sendOutResponse.getStatusCode().is2xxSuccessful()) {
-                            log.info("调用基础服务修改为已发货状态正常{}",orderCode);
+                        deliverOrder.setCreateAt(dateStart);
+
+                        current.plusHours(1);//加一个小时
+                        Date dateEnd = Date.from(zdt.toInstant());
+                        deliverOrder.setDeliverTime(DeliverTime.of("立即配送", dateStart, dateEnd));
+                        deliverOrder.setDeliveryFee(orderDetailResult.getDeliveryAmount());
+                        deliverOrder.setHdOrderCode(orderDetailResult.getHdOrderCode());
+
+                        ResponseEntity<Store> storeResponseEntity =Try.<ResponseEntity<Store>>run(
+                                () ->baseDataService.findStoreByCode(orderDetailResult.getOrderStore().getStoreCode(), ApplicationType.APP)
+                        ).orElseThrow(() -> new ApiException("查询门店失败", 400));
+
+                        if (Objects.nonNull(storeResponseEntity) && storeResponseEntity.getStatusCode().is2xxSuccessful()) {
+                            deliverOrder.setLat(storeResponseEntity.getBody().getLatitude().doubleValue());//TODO 配送经纬度不是门店的经纬度，是收货地址的经纬度
+                            deliverOrder.setLng(storeResponseEntity.getBody().getLongitude().doubleValue());
                         } else {
-                            log.error("调用基础服务修改为已发货状态错误{}",orderCode);
+                            log.error("查询门店信息失败", orderDetailResult.getOrderStore().getStoreCode());
+                            deliverOrder.setLat(0.00);
+                            deliverOrder.setLng(0.00);
+                        }
+                        deliverOrder.setOrderId(orderDetailResult.getId());
+                        deliverOrder.setOrderCode(orderDetailResult.getCode());
+                        deliverOrder.setReceiveUser(orderDetailResult.getReceiveUser());
+                        deliverOrder.setRemark(orderDetailResult.getRemark());
+                        deliverOrder.setStoreCode(orderDetailResult.getOrderStore().getStoreCode());
+                        deliverOrder.setStoreName(orderDetailResult.getOrderStore().getStoreName());
+                        deliverOrder.setTotalAmount(orderDetailResult.getTotalAmount());
+                        deliverOrder.setUserId(orderDetailResult.getUserId());
+
+                        List<DeliverProduct> deliverProductList = new ArrayList<>(orderDetailResult.getOrderProductList().size());
+                        orderDetailResult.getOrderProductList().forEach(item -> {
+                            DeliverProduct deliverProduct = new DeliverProduct();
+                            deliverProduct.setBarcode(item.getBarcode());
+                            deliverProduct.setBaseWeight(item.getTotalWeight().doubleValue());
+                            deliverProduct.setDeliverBaseOrderId(orderDetailResult.getId());
+                            deliverProduct.setDiscountPrice(item.getDiscountPrice());
+                            deliverProduct.setImage(item.getImage());
+                            deliverProduct.setLargeImage(item.getImage());
+                            deliverProduct.setPrice(item.getTotalPrice());
+                            deliverProduct.setProductName(item.getProductName());
+                            deliverProduct.setProductQty(item.getProductQty());
+                            deliverProduct.setSmallImage(item.getImage());
+                            deliverProduct.setStandardPrice((int) Calculator.div(item.getTotalPrice(), item.getProductQty()));
+                            deliverProduct.setStandardQty(Double.valueOf(item.getShelfQty().toString()));
+                            deliverProductList.add(deliverProduct);
+                        });
+                        deliverOrder.setDeliverOrderProductList(deliverProductList);//填充订单商品
+
+                        //发送达达配送
+                        ResponseEntity deliverResponseEntity = deliverService.create(DeliverType.valueOf(deliverConfig.getType()), CoordinateSystem.AMAP, deliverOrder);
+
+                        if (Objects.nonNull(deliverResponseEntity) && deliverResponseEntity.getStatusCode().is2xxSuccessful()) {
+                            //设置成已发货
+                            ResponseEntity sendOutResponse = orderService.updateOrderStatus(orderDetailResult.getCode(), OrderStatus.SEND_OUT);
+                            if (Objects.nonNull(sendOutResponse) && sendOutResponse.getStatusCode().is2xxSuccessful()) {
+                                log.info("调用基础服务修改为已发货状态正常{}", orderCode);
+                            } else {
+                                log.error("调用基础服务修改为已发货状态错误{}", orderCode);
+                            }
                         }
                     }
+                    return Tips.of(HttpStatus.OK, orderCode);
+                } else if ("return.received".equals(map.get("topic"))) {
+                    log.info("订单退货回调*********");
+                    if (Objects.equals(OrderStatus.RETURNING, orderDetailResult.getStatus())) {
+                        log.info("给用户退款", orderDetailResult);
+                        //退款
+                        //判断退款是否成功
+                        //改订单为退款成功
+                    }
+                } else {
+                    log.info("hd other group message= " + map.get("group"));
                 }
-                return Tips.of(HttpStatus.OK, orderCode);
-            } else if ("return.received".equals(map.get("topic"))) {
-                log.info("订单退货回调*********");
-                if (Objects.equals(OrderStatus.RETURNING, orderDetailResult.getStatus())) {
-                    log.info("给用户退款", orderDetailResult);
-                    //退款
-                    //判断退款是否成功
-                    //改订单为退款成功
-                }
-            } else {
-                log.info("hd other group message= " + map.get("group"));
             }
+            return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
+        }catch (Exception e){
+            return Tips.of(HttpStatus.BAD_REQUEST, "未知错误");
         }
-        return Tips.of(HttpStatus.BAD_REQUEST, String.valueOf(orderDetailResultResponseEntity.getBody()));
     }
 
     public Tips deliverCallbackDeal(Map<String, Object> param) {
