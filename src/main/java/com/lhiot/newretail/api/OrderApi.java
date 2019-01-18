@@ -86,13 +86,13 @@ public class OrderApi {
         }
         return ResponseEntity.ok().build();
     }
-
+*/
     @ApiOperation(value = "批量推送")
     @PostMapping("batch-push")
     public ResponseEntity<?> batchPush(@RequestBody String[] orderCodes){
         newRetailOrderService.batchPush(orderCodes);
         return ResponseEntity.ok().build();
-    }*/
+    }
 
 
 

@@ -25,6 +25,8 @@ public class HdOrderProduct {
     private Integer productQty;
 
     private BigDecimal specificationQty;//基础的规格传1
+    private BigDecimal shelfQty;//基础的规格传1 第三方发送海鼎实际传递此值
+
     private String refundStatus;
     private Integer standardPrice;
 }
