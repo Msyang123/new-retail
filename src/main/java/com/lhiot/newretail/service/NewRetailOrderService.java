@@ -163,18 +163,7 @@ public class NewRetailOrderService {
             newRetailOrder.getOrderProducts().parallelStream().forEach(item -> item.setOrderCode(orderDetailResult.getCode()));
             orderProductMapper.batchInsert(newRetailOrder.getOrderProducts());
             //推送到海鼎
-            HdOrderInfo hdOrderInfo = new HdOrderInfo();
-            BeanUtils.copyProperties(newRetailOrder, hdOrderInfo);
-            hdOrderInfo.setApplyType(ApplicationType.APP);
-            hdOrderInfo.setCode(newRetailOrder.getOrderCode());
-            hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
-            hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
-            hdOrderInfo.setStoreName(newRetailOrder.getOrderStore().getStoreName());
-            hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
-            hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
-            hdOrderInfo.setUserId(9999L);
-            hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
-            hdOrderInfo.setPayAt(Date.from(Instant.now()));
+            HdOrderInfo hdOrderInfo = converNewRetailOrderToHdOrderInfo(newRetailOrder);
             ResponseEntity haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             if (Objects.nonNull(haidingReduceResponse) && haidingReduceResponse.getStatusCode().is2xxSuccessful()) {
                 //发送海鼎订单成功
@@ -207,20 +196,46 @@ public class NewRetailOrderService {
         for(String orderCode: orderCodes){
             NewRetailOrder newRetailOrder = newRetailOrderMapper.orderDetailByCode(orderCode);
             //推送到海鼎
-            HdOrderInfo hdOrderInfo = new HdOrderInfo();
-            BeanUtils.copyProperties(newRetailOrder, hdOrderInfo);
-            hdOrderInfo.setApplyType(ApplicationType.APP);
-            hdOrderInfo.setCode(newRetailOrder.getOrderCode());
-            hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
-            hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
-            hdOrderInfo.setStoreName(newRetailOrder.getOrderStore().getStoreName());
-            hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
-            hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
-            hdOrderInfo.setUserId(9999L);
-            hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
+            HdOrderInfo hdOrderInfo = converNewRetailOrderToHdOrderInfo(newRetailOrder);
             ResponseEntity<String> haidingReduceResponse = haidingService.reduce(hdOrderInfo);
             log.info(haidingReduceResponse.getBody());
         }
+    }
+
+    private HdOrderInfo converNewRetailOrderToHdOrderInfo(NewRetailOrder newRetailOrder){
+        HdOrderInfo hdOrderInfo = new HdOrderInfo();
+
+        hdOrderInfo.setPayAt(Date.from(Instant.now()));
+        hdOrderInfo.setApplyType(ApplicationType.APP);
+        hdOrderInfo.setCode(newRetailOrder.getOrderCode());
+        hdOrderInfo.setHdOrderCode(newRetailOrder.getOrderCode());
+        hdOrderInfo.setStoreCode(newRetailOrder.getOrderStore().getStoreCode());
+        hdOrderInfo.setStoreName(newRetailOrder.getOrderStore().getStoreName());
+        hdOrderInfo.setOrderStatus(OrderStatus.WAIT_SEND_OUT.name());
+        hdOrderInfo.setReceivingWay(newRetailOrder.getReceivingWay().name());
+        hdOrderInfo.setTotalAmount(newRetailOrder.getTotalAmount());
+        hdOrderInfo.setAmountPayable(newRetailOrder.getAmountPayable());
+        hdOrderInfo.setDeliveryAmount(newRetailOrder.getDeliveryAmount());
+        hdOrderInfo.setCouponAmount(newRetailOrder.getCouponAmount());
+        hdOrderInfo.setAddress(newRetailOrder.getAddress());
+        hdOrderInfo.setReceiveUser(newRetailOrder.getReceiveUser());
+        hdOrderInfo.setContactPhone(newRetailOrder.getContactPhone());
+        hdOrderInfo.setUserId(9999L);
+        hdOrderInfo.setRemark(ApplicationType.APP.getDescription()+"-"+newRetailOrder.getRemark());
+        //第三方发送海鼎服务传递的为ShelfQty
+        List<HdOrderProduct> hdOrderProductList =new ArrayList<>();
+        newRetailOrder.getOrderProducts().forEach(item -> {
+            HdOrderProduct hdOrderProduct =new HdOrderProduct();
+            hdOrderProduct.setShelfQty(item.getSpecificationQty());
+            hdOrderProduct.setBarcode(item.getBarcode());
+            hdOrderProduct.setDiscountPrice(item.getDiscountPrice());
+            hdOrderProduct.setProductName(item.getProductName());
+            hdOrderProduct.setProductQty(item.getProductQty().intValue());
+            hdOrderProduct.setTotalPrice(item.getTotalPrice());
+            hdOrderProductList.add(hdOrderProduct);
+        });
+        hdOrderInfo.setOrderProducts(hdOrderProductList);
+        return hdOrderInfo;
     }
 
     //推送线上订单到新零售门店 （非海鼎系统）
